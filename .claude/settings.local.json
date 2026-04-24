@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(npx tsc *)",
+      "Bash(npm cache *)",
+      "Bash(pkill -f \"npm\")",
+      "Bash(yarn add *)",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(curl -s http://localhost:3000/login)",
+      "Bash(curl -s http://localhost:3000/login -v)",
+      "Bash(curl -sI http://localhost:3000/)",
+      "Bash(curl -sI http://localhost:3001/)",
+      "Bash(curl -sI http://localhost:3001/login)",
+      "Bash(curl -sI http://localhost:3001/signup)",
+      "Bash(curl -sI http://localhost:3001/teacher/dashboard)",
+      "Bash(curl -sI http://localhost:3001/admin/dashboard)",
+      "Bash(pnpm approve-builds *)",
+      "Bash(pnpm config *)",
+      "Bash(pnpm install *)",
+      "Bash(node *)",
+      "Bash(pdfinfo)",
+      "Bash(apt-get install *)",
+      "Bash(pnpm build *)",
+      "Bash(grep -v \"^$\")",
+      "Bash(curl *)",
+      "Bash(pnpm dev *)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(echo \"Started PID: $!\")",
+      "Bash(awk '{print $2}')",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
+    ]
+  }
+}

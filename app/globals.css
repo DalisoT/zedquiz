@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+}
+
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom, 16px);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes scale-in {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.active\:scale-98:active {
+  transform: scale(0.98);
+}

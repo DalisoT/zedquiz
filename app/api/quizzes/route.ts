@@ -1,0 +1,62 @@
+import { createClient } from '@supabase/supabase-js';
+import { NextRequest, NextResponse } from 'next/server';
+import { createQuizSchema, validateSchema } from '@/lib/validation';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+export async function GET() {
+  const { data, error } = await supabase
+    .from('quizzes')
+    .select('*, classes(name), subjects(name)')
+    .order('created_at', { ascending: false });
+  if (error) return NextResponse.json({ error }, { status: 500 });
+  return NextResponse.json({ quizzes: data });
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const validation = validateSchema(createQuizSchema, body);
+    if (!validation.valid) {
+      return NextResponse.json({ error: 'Validation failed', details: validation.errors }, { status: 400 });
+    }
+
+    const accessToken = request.cookies.get('sb-access-token')?.value;
+    if (!accessToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const authClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        global: { headers: { Authorization: `Bearer ${accessToken}` } },
+        auth: { persistSession: false },
+      }
+    );
+
+    const { data: { user } } = await authClient.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const { data, error } = await supabase
+      .from('quizzes')
+      .insert({
+        teacher_id: user.id,
+        title: validation.data.title,
+        description: validation.data.description,
+        class_id: validation.data.class_id,
+        subject_id: validation.data.subject_id,
+        time_limit_seconds: validation.data.time_limit_seconds,
+        question_count: validation.data.question_count,
+      })
+      .select()
+      .single();
+
+    if (error) return NextResponse.json({ error }, { status: 500 });
+    return NextResponse.json({ quiz: data });
+  } catch (e) {
+    console.error('Create quiz error:', e);
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+  }
+}
