@@ -104,6 +104,7 @@ export default function TeacherPapersPage() {
     try {
       const res = await fetch('/api/papers/upload', {
         method: 'POST',
+        credentials: 'include',
         body: formData,
       });
       const data = await res.json();
