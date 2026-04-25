@@ -2,14 +2,6 @@ import { NextResponse } from 'next/server';
 import { getPaper, updatePaperStatus, insertPaperQuestions, parseQuestionsWithAI, deleteFileFromStorage } from '@/lib/paperProcessor';
 import { createClient } from '@supabase/supabase-js';
 import { execSync } from 'child_process';
-import { writeFileSync, unlinkSync, mkdirSync, readdirSync } from 'fs';
-import path from 'path';
-import os from 'os';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 import { writeFileSync, unlinkSync, mkdirSync, existsSync, readdirSync } from 'fs';
 import path from 'path';
 import os from 'os';
