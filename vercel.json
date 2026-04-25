@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "app/api/**/*.ts": {
+      "maxDuration": 60,
+      "maxBodySize": 10485760
+    }
+  }
+}

@@ -72,9 +72,18 @@ export default function TeacherPapersPage() {
 
   async function fetchPapers(teacherId: string) {
     setLoadingPapers(true);
-    const res = await fetch(`/api/papers?userId=${teacherId}`);
-    const data = await res.json();
-    setPapers(data.papers || []);
+    try {
+      const res = await fetch(`/api/papers?userId=${teacherId}`);
+      const data = await res.json();
+      if (data.error) {
+        console.error('fetchPapers error:', data.error);
+        alert('Failed to load papers: ' + data.error);
+      }
+      setPapers(data.papers || []);
+    } catch (err) {
+      console.error('fetchPapers catch error:', err);
+      alert('Failed to load papers');
+    }
     setLoadingPapers(false);
   }
 
@@ -98,14 +107,21 @@ export default function TeacherPapersPage() {
         body: formData,
       });
       const data = await res.json();
+
+      if (!res.ok) {
+        alert('Upload failed (status ' + res.status + '): ' + (data.error || 'Unknown error'));
+        setUploading(false);
+        return;
+      }
+
       if (data.error) {
-        alert('Error: ' + data.error);
+        alert('Upload error: ' + data.error);
       } else if (data.paper) {
         fetchPapers(user.id);
         setForm({ title: '', subjectId: '', classId: '', examYear: new Date().getFullYear(), paperNumber: 1, file: null });
       }
     } catch (err) {
-      alert('Upload failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      alert('Upload failed: ' + (err instanceof Error ? err.message : 'Network error'));
     }
     setUploading(false);
   }
