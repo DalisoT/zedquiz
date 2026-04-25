@@ -98,12 +98,14 @@ export default function TeacherPapersPage() {
         body: formData,
       });
       const data = await res.json();
-      if (data.paper) {
+      if (data.error) {
+        alert('Error: ' + data.error);
+      } else if (data.paper) {
         fetchPapers(user.id);
         setForm({ title: '', subjectId: '', classId: '', examYear: new Date().getFullYear(), paperNumber: 1, file: null });
       }
     } catch (err) {
-      console.error(err);
+      alert('Upload failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
     }
     setUploading(false);
   }

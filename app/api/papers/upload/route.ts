@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     const accessToken = request.cookies.get('sb-access-token')?.value;
     console.log('[upload] cookies:', request.cookies.getAll().map(c => c.name));
     console.log('[upload] accessToken present:', !!accessToken);
-    if (!accessToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!accessToken) return NextResponse.json({ error: 'Unauthorized: No access token found in cookies. Please sign in again.' }, { status: 401 });
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -42,6 +42,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ paper });
   } catch (e: any) {
     console.error('Upload error:', e);
-    return NextResponse.json({ error: 'Failed to upload paper' }, { status: 500 });
+    return NextResponse.json({ error: e.message || 'Failed to upload paper' }, { status: 500 });
   }
 }
