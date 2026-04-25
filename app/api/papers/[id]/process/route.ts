@@ -6,6 +6,11 @@ import { writeFileSync, unlinkSync, mkdirSync, existsSync, readdirSync } from 'f
 import path from 'path';
 import os from 'os';
 
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
 async function extractTextFromPDF(fileUrl: string): Promise<string> {
   const tempDir = os.tmpdir();
   const baseName = `paper_${Date.now()}`;

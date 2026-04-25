@@ -19,10 +19,11 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const validation = validateSchema(createExamSchema, body);
-    if (!validation.valid) {
-      return NextResponse.json({ error: 'Validation failed', details: validation.errors }, { status: 400 });
+    const result = createExamSchema.safeParse(body);
+    if (!result.success) {
+      return NextResponse.json({ error: 'Validation failed', details: result.error.issues.map(e => ({ field: e.path.join('.'), message: e.message })) }, { status: 400 });
     }
+    const examData = result.data;
 
     const accessToken = request.cookies.get('sb-access-token')?.value;
     if (!accessToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -43,12 +44,12 @@ export async function POST(request: NextRequest) {
       .from('exams')
       .insert({
         teacher_id: user.id,
-        title: validation.data.title,
-        description: validation.data.description,
-        class_id: validation.data.class_id,
-        subject_id: validation.data.subject_id,
-        time_limit_seconds: validation.data.time_limit_seconds,
-        question_count: validation.data.question_count,
+        title: examData.title,
+        description: examData.description,
+        class_id: examData.class_id,
+        subject_id: examData.subject_id,
+        time_limit_seconds: examData.time_limit_seconds,
+        question_count: examData.question_count,
       })
       .select()
       .single();

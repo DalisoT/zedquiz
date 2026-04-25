@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
   const { data: authUsers } = await serviceClient.auth.admin.listUsers();
   const emailMap: Record<string, string> = {};
   authUsers?.users.forEach(u => {
-    emailMap[u.id] = u.email;
+    emailMap[u.id] = u.email ?? '';
   });
 
   const usersWithEmail = data?.map(p => ({

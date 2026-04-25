@@ -80,11 +80,11 @@ export default function WeakAreasPage() {
   }
 
   // Get unique subjects for filter
-  const subjects = [...new Map(
+  const subjects = Array.from(new Map(
     [...(weakTopics || []), ...(strongTopics || [])]
       .filter(t => t.subjects)
       .map(t => [t.subjects!.id, t.subjects!])
-  ).values()];
+  ).values());
 
   const getAccuracyColor = (accuracy: number) => {
     if (accuracy >= 70) return "text-green-600 bg-green-50";

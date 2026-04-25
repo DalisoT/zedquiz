@@ -57,7 +57,7 @@ export const markingKeySchema = z.object({
   class_id: z.string().uuid(),
   exam_year: z.number().int().min(2000).max(2030).optional(),
   paper_variant: z.string().max(50).optional(),
-  marking_scheme: z.record(z.unknown()),
+  marking_scheme: z.record(z.string(), z.unknown()),
   notes: z.string().max(500).optional(),
 });
 
@@ -70,7 +70,7 @@ export function validateSchema<T>(schema: z.ZodSchema<T>, data: unknown) {
   if (!result.success) {
     return {
       valid: false,
-      errors: result.error.errors.map(e => ({ field: e.path.join('.'), message: e.message })),
+      errors: result.error.issues.map(e => ({ field: e.path.join('.'), message: e.message })),
     };
   }
   return { valid: true, data: result.data };

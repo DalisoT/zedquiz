@@ -81,14 +81,16 @@ export async function GET(request: NextRequest) {
 
   const { data: ratings } = await authClient.from('tutorial_ratings').select('tutorial_id, rating, tutorials(teacher_id)');
 
+  type RatingWithTutorial = { rating: number; tutorials: { teacher_id: string } | { teacher_id: string }[] };
   const teacherRatingsMap: Record<string, { total: number; count: number }> = {};
-  ratings?.forEach(r => {
-    if (r.tutorials?.teacher_id) {
-      if (!teacherRatingsMap[r.tutorials.teacher_id]) {
-        teacherRatingsMap[r.tutorials.teacher_id] = { total: 0, count: 0 };
+  (ratings as RatingWithTutorial[] | null)?.forEach(r => {
+    const teacherId = Array.isArray(r.tutorials) ? r.tutorials[0]?.teacher_id : r.tutorials?.teacher_id;
+    if (teacherId) {
+      if (!teacherRatingsMap[teacherId]) {
+        teacherRatingsMap[teacherId] = { total: 0, count: 0 };
       }
-      teacherRatingsMap[r.tutorials.teacher_id].total += r.rating;
-      teacherRatingsMap[r.tutorials.teacher_id].count++;
+      teacherRatingsMap[teacherId].total += r.rating;
+      teacherRatingsMap[teacherId].count++;
     }
   });
 

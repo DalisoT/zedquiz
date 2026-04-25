@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ tutorial: data });
   } catch (e) {
     if (e instanceof z.ZodError) {
-      return NextResponse.json({ error: e.errors }, { status: 400 });
+      return NextResponse.json({ error: e.issues }, { status: 400 });
     }
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }

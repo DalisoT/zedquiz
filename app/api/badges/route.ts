@@ -11,7 +11,7 @@ const BADGE_CRITERIA = [
   { name: 'Overachiever', description: 'Earn 10000 points', icon: '🌟', trigger: 'total_points', threshold: 10000 },
 ];
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const accessToken = request.cookies.get('sb-access-token')?.value;
     if (!accessToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
