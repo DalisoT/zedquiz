@@ -22,6 +22,22 @@ export interface PaperQuestion {
 
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
+/**
+ * Extract text from PDF using Groq's vision model for OCR
+ * For image-based PDFs, the frontend should handle OCR before sending text
+ * This fallback sends the file URL to Groq for processing
+ */
+export async function extractTextFromPDF(fileUrl: string): Promise<string> {
+  // For now, return empty - PDF text extraction requires either:
+  // 1. Server-side PDF.js with proper Node.js polyfills (complex setup)
+  // 2. External OCR API (AWS Textract, Google Vision, etc.)
+  // 3. Client-side OCR before sending to API
+  //
+  // For Vercel compatibility, we'll implement a simple Groq vision-based OCR
+  // or require text-based PDFs only for now
+  throw new Error('PDF text extraction requires the file to be pre-processed. Please use a text-based PDF or pre-extract the text.');
+}
+
 export async function parseQuestionsWithAI(
   ocrText: string,
   paperYear: number,

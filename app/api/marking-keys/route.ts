@@ -1,12 +1,23 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function GET() {
-  const supabase = createClient(
+export async function GET(request: NextRequest) {
+  const accessToken = request.cookies.get('sb-access-token')?.value;
+  if (!accessToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const authClient = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: { headers: { Authorization: `Bearer ${accessToken}` } },
+      auth: { persistSession: false }
+    }
   );
-  const { data, error } = await supabase
+
+  const { data: { user } } = await authClient.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { data, error } = await authClient
     .from('marking_keys')
     .select('*, subjects(name), classes(name), profiles(full_name)')
     .order('created_at', { ascending: false });

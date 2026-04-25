@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       response.cookies.set('sb-access-token', data.session.access_token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        sameSite: 'lax',
         maxAge: 60 * 60, // 1 hour - access token should be short-lived
         path: '/',
       });
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       response.cookies.set('sb-refresh-token', data.session.refresh_token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        sameSite: 'lax',
         maxAge: 60 * 60 * 24 * 7, // 1 week for refresh token
         path: '/',
       });

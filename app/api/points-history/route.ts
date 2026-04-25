@@ -9,10 +9,38 @@ const supabase = createClient(
 // Record points earned
 export async function POST(request: NextRequest) {
   try {
+    // Validate auth token
+    const accessToken = request.cookies.get('sb-access-token')?.value;
+    if (!accessToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const authClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        global: { headers: { Authorization: `Bearer ${accessToken}` } },
+        auth: { persistSession: false }
+      }
+    );
+
+    const { data: { user } } = await authClient.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const { user_id, points, source, reference_id } = await request.json();
 
     if (!user_id || !points || !source) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    // Only allow users to add points to themselves (or admin)
+    if (user_id !== user.id) {
+      const { data: profile } = await authClient
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+      if (!profile || (profile.role !== 'admin' && profile.role !== 'super_admin')) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
     }
 
     const { data, error } = await supabase
