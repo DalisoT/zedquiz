@@ -13,7 +13,7 @@ export async function GET(request: Request) {
 
     let query = supabase
       .from('papers')
-      .select('id, title, exam_year, paper_number, status, subjects(name), classes(name)')
+      .select('id, title, exam_year, paper_number, status, file_url, subjects(name), classes(name)')
       .order('created_at', { ascending: false });
 
     if (userId) {

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { extractTextFromPDFFull } from '@/lib/ocr';
 
 interface Level { id: string; name: string; slug: string; }
 interface Subject { id: string; name: string; }
@@ -13,6 +14,7 @@ interface Paper {
   exam_year: number;
   paper_number: number;
   status: string;
+  file_url?: string;
   subjects?: { name: string };
   classes?: { name: string };
   paper_questions?: { count: number }[];
@@ -189,26 +191,58 @@ export default function TeacherPapersPage() {
 
   async function processPaper(paperId: string) {
     if (!confirm('Process this paper with OCR + AI? This may take a minute...')) return;
+
+    // Find the paper to get its file URL
+    const paper = papers.find(p => p.id === paperId);
+    if (!paper) return;
+
     const btn = document.getElementById(`process-btn-${paperId}`) as HTMLButtonElement;
     btn.disabled = true;
-    btn.textContent = 'Processing...';
+    btn.textContent = 'Extracting text...';
 
     try {
-      const res = await fetch(`/api/papers/${paperId}/process`, {
+      // Download the PDF file
+      const fileResponse = await fetch(paper.file_url || '');
+      if (!fileResponse.ok) throw new Error('Failed to download PDF');
+
+      // Convert to File object
+      const pdfBlob = await fileResponse.blob();
+      const fileName = paper.title.replace(/[^a-z0-9]/gi, '_') + '.pdf';
+      const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+
+      btn.textContent = 'Running OCR...';
+
+      // Extract text using browser-side OCR
+      const ocrText = await extractTextFromPDFFull(pdfFile);
+
+      if (!ocrText || ocrText.length < 50) {
+        throw new Error('Could not extract text from PDF. The file may be scanned/image-based.');
+      }
+
+      btn.textContent = 'Parsing questions...';
+
+      // Send extracted text to server for AI processing
+      const res = await fetch('/api/papers/process-text', {
         method: 'POST',
         credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paperId, ocrText }),
       });
+
       const data = await res.json();
+
       if (data.error) {
-        alert('Processing error: ' + data.error);
-      } else {
-        fetchPapers(user!.id);
+        throw new Error(data.error);
       }
+
+      fetchPapers(user!.id);
     } catch (err) {
-      alert('Processing failed: Network error');
+      console.error('Process error:', err);
+      alert('Processing failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      fetchPapers(user!.id);
     }
     btn.disabled = false;
-    btn.textContent = 'Process';
+    btn.textContent = 'Process with OCR + AI';
   }
 
   const statusBadge = (status: string) => {
