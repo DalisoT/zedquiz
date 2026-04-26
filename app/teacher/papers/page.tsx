@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
+interface Level { id: string; name: string; slug: string; }
 interface Subject { id: string; name: string; }
 interface ClassInfo { id: string; name: string; }
 interface Paper {
@@ -28,14 +29,18 @@ export default function TeacherPapersPage() {
   const [uploading, setUploading] = useState(false);
   const [papers, setPapers] = useState<Paper[]>([]);
   const [loadingPapers, setLoadingPapers] = useState(true);
+  const [levels, setLevels] = useState<Level[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [classes, setClasses] = useState<ClassInfo[]>([]);
   const [user, setUser] = useState<User | null>(null);
+  const [loadingLevels, setLoadingLevels] = useState(true);
+  const [loadingFormData, setLoadingFormData] = useState(false);
 
   const [form, setForm] = useState({
     title: '',
     subjectId: '',
     classId: '',
+    levelId: '',
     examYear: new Date().getFullYear(),
     paperNumber: 1,
     file: null as File | null,
@@ -43,7 +48,7 @@ export default function TeacherPapersPage() {
 
   useEffect(() => {
     fetchUser();
-    fetchSubjectsAndClasses();
+    fetchLevels();
   }, []);
 
   async function fetchUser() {
@@ -55,19 +60,39 @@ export default function TeacherPapersPage() {
     }
   }
 
-  async function fetchSubjectsAndClasses() {
-    const res = await fetch('/api/levels').then(r => r.json());
-    const primaryLevel = res.levels?.find((l: any) => l.slug === 'primary');
-    if (!primaryLevel) return;
+  async function fetchLevels() {
+    setLoadingLevels(true);
+    try {
+      const res = await fetch('/api/levels');
+      const data = await res.json();
+      setLevels(data.levels || []);
+      // Auto-select first level if available
+      if (data.levels?.length > 0) {
+        setForm(prev => ({ ...prev, levelId: data.levels[0].id }));
+      }
+    } catch (err) {
+      console.error('Failed to load levels:', err);
+    }
+    setLoadingLevels(false);
+  }
 
-    const [subjRes, classRes] = await Promise.all([
-      fetch(`/api/subjects?levelId=${primaryLevel.id}`),
-      fetch(`/api/classes?levelId=${primaryLevel.id}`),
-    ]);
-    const subjData = await subjRes.json();
-    const classData = await classRes.json();
-    setSubjects(subjData.subjects || []);
-    setClasses(classData.classes || []);
+  async function fetchSubjectsAndClasses(levelId: string) {
+    setLoadingFormData(true);
+    try {
+      const [subjRes, classRes] = await Promise.all([
+        fetch(`/api/subjects?levelId=${levelId}`),
+        fetch(`/api/classes?levelId=${levelId}`),
+      ]);
+      const subjData = await subjRes.json();
+      const classData = await classRes.json();
+      setSubjects(subjData.subjects || []);
+      setClasses(classData.classes || []);
+      // Reset subject and class selection when level changes
+      setForm(prev => ({ ...prev, subjectId: '', classId: '' }));
+    } catch (err) {
+      console.error('Failed to load subjects/classes:', err);
+    }
+    setLoadingFormData(false);
   }
 
   async function fetchPapers(teacherId: string) {
@@ -85,6 +110,16 @@ export default function TeacherPapersPage() {
       alert('Failed to load papers');
     }
     setLoadingPapers(false);
+  }
+
+  function handleLevelChange(levelId: string) {
+    setForm(prev => ({ ...prev, levelId }));
+    if (levelId) {
+      fetchSubjectsAndClasses(levelId);
+    } else {
+      setSubjects([]);
+      setClasses([]);
+    }
   }
 
   async function handleUpload(e: React.FormEvent) {
@@ -119,12 +154,37 @@ export default function TeacherPapersPage() {
         alert('Upload error: ' + data.error);
       } else if (data.paper) {
         fetchPapers(user.id);
-        setForm({ title: '', subjectId: '', classId: '', examYear: new Date().getFullYear(), paperNumber: 1, file: null });
+        setForm({ title: '', subjectId: '', classId: '', levelId: form.levelId, examYear: new Date().getFullYear(), paperNumber: 1, file: null });
       }
     } catch (err) {
       alert('Upload failed: ' + (err instanceof Error ? err.message : 'Network error'));
     }
     setUploading(false);
+  }
+
+  async function deletePaper(paperId: string) {
+    if (!confirm('Are you sure you want to delete this paper? This will also delete all extracted questions.')) return;
+
+    const btn = document.getElementById(`delete-btn-${paperId}`) as HTMLButtonElement;
+    btn.disabled = true;
+    btn.textContent = 'Deleting...';
+
+    try {
+      const res = await fetch(`/api/papers/${paperId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (data.error) {
+        alert('Delete failed: ' + data.error);
+      } else {
+        fetchPapers(user!.id);
+      }
+    } catch (err) {
+      alert('Delete failed: Network error');
+    }
+    btn.disabled = false;
+    btn.textContent = 'Delete';
   }
 
   async function processPaper(paperId: string) {
@@ -134,15 +194,18 @@ export default function TeacherPapersPage() {
     btn.textContent = 'Processing...';
 
     try {
-      const res = await fetch(`/api/papers/${paperId}/process`, { method: 'POST' });
+      const res = await fetch(`/api/papers/${paperId}/process`, {
+        method: 'POST',
+        credentials: 'include',
+      });
       const data = await res.json();
       if (data.error) {
-        alert('Error: ' + data.error);
+        alert('Processing error: ' + data.error);
       } else {
         fetchPapers(user!.id);
       }
     } catch (err) {
-      alert('Processing failed');
+      alert('Processing failed: Network error');
     }
     btn.disabled = false;
     btn.textContent = 'Process';
@@ -150,7 +213,7 @@ export default function TeacherPapersPage() {
 
   const statusBadge = (status: string) => {
     const colors: Record<string, string> = {
-      uploaded: 'bg-slate-100 text-srawl-700',
+      uploaded: 'bg-slate-100 text-slate-700',
       processing: 'bg-yellow-100 text-yellow-700',
       processed: 'bg-blue-100 text-blue-700',
       imported: 'bg-green-100 text-green-700',
@@ -160,6 +223,16 @@ export default function TeacherPapersPage() {
         {status}
       </span>
     );
+  };
+
+  const statusHelpText = (status: string) => {
+    const messages: Record<string, string> = {
+      uploaded: 'Paper uploaded. Click Process to extract questions with AI.',
+      processing: 'AI is extracting questions. Please wait...',
+      processed: 'Questions extracted. Review and approve them.',
+      imported: 'Questions approved and available for students.',
+    };
+    return messages[status] || '';
   };
 
   return (
@@ -187,25 +260,52 @@ export default function TeacherPapersPage() {
               required
             />
 
+            {/* Level Selector - NEW */}
+            {loadingLevels ? (
+              <select className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-slate-50" disabled>
+                <option value="">Loading levels...</option>
+              </select>
+            ) : (
+              <select
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                value={form.levelId}
+                onChange={e => handleLevelChange(e.target.value)}
+                required
+              >
+                <option value="">Select Level</option>
+                {levels.map(l => (
+                  <option key={l.id} value={l.id}>{l.name}</option>
+                ))}
+              </select>
+            )}
+
+            {/* Subject Selector */}
             <select
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
               value={form.subjectId}
               onChange={e => setForm({ ...form, subjectId: e.target.value })}
+              disabled={!form.levelId || loadingFormData}
               required
             >
-              <option value="">Select Subject</option>
+              <option value="">
+                {!form.levelId ? 'Select level first' : loadingFormData ? 'Loading subjects...' : 'Select Subject'}
+              </option>
               {subjects.map(s => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
 
+            {/* Class Selector */}
             <select
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
               value={form.classId}
               onChange={e => setForm({ ...form, classId: e.target.value })}
+              disabled={!form.subjectId || loadingFormData}
               required
             >
-              <option value="">Select Class</option>
+              <option value="">
+                {!form.subjectId ? 'Select subject first' : loadingFormData ? 'Loading classes...' : 'Select Class'}
+              </option>
               {classes.map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
@@ -244,7 +344,7 @@ export default function TeacherPapersPage() {
 
             <button
               type="submit"
-              disabled={uploading || !user}
+              disabled={uploading || !user || !form.subjectId || !form.classId}
               className="w-full bg-primary-600 text-white py-3 rounded-xl font-medium disabled:opacity-50"
             >
               {uploading ? 'Uploading...' : 'Upload Paper'}
@@ -254,16 +354,35 @@ export default function TeacherPapersPage() {
 
         {/* Papers List */}
         <div className="bg-white rounded-xl p-4">
-          <h2 className="font-semibold text-slate-800 mb-3">Your Papers</h2>
+          <div className="flex justify-between items-center mb-3">
+            <h2 className="font-semibold text-slate-800">Your Papers</h2>
+            <button
+              onClick={() => user && fetchPapers(user.id)}
+              className="text-primary-600 text-sm hover:underline"
+            >
+              ↻ Refresh
+            </button>
+          </div>
           {loadingPapers ? (
-            <p className="text-slate-500 text-sm">Loading...</p>
+            <div className="space-y-3">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="animate-pulse border border-slate-100 rounded-lg p-3">
+                  <div className="h-4 bg-slate-200 rounded w-3/4 mb-2"></div>
+                  <div className="h-3 bg-slate-200 rounded w-1/2"></div>
+                </div>
+              ))}
+            </div>
           ) : papers.length === 0 ? (
-            <p className="text-slate-500 text-sm">No papers uploaded yet.</p>
+            <div className="text-center py-8">
+              <p className="text-4xl mb-3">📚</p>
+              <p className="text-slate-500 text-sm">No papers uploaded yet.</p>
+              <p className="text-slate-400 text-xs mt-1">Upload ECZ past papers to get started</p>
+            </div>
           ) : (
             <div className="space-y-3">
               {papers.map(paper => (
                 <div key={paper.id} className="border border-slate-100 rounded-lg p-3">
-                  <div className="flex justify-between items-start mb-2">
+                  <div className="flex justify-between items-start mb-1">
                     <div>
                       <p className="font-medium text-slate-800 text-sm">{paper.title}</p>
                       <p className="text-xs text-slate-500">
@@ -272,6 +391,10 @@ export default function TeacherPapersPage() {
                     </div>
                     {statusBadge(paper.status)}
                   </div>
+                  {/* Status help text */}
+                  {statusHelpText(paper.status) && (
+                    <p className="text-xs text-slate-400 mb-2">{statusHelpText(paper.status)}</p>
+                  )}
                   <div className="flex gap-2">
                     {paper.status === 'uploaded' && (
                       <button
@@ -295,6 +418,13 @@ export default function TeacherPapersPage() {
                         ✓ Imported
                       </span>
                     )}
+                    <button
+                      id={`delete-btn-${paper.id}`}
+                      onClick={() => deletePaper(paper.id)}
+                      className="bg-red-100 text-red-600 py-2 px-3 rounded-lg text-sm font-medium"
+                    >
+                      ✕
+                    </button>
                   </div>
                 </div>
               ))}
