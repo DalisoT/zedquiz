@@ -1,16 +1,13 @@
 import Tesseract from 'tesseract.js';
-import * as pdfjsLib from 'pdfjs-dist';
 
-// Use the worker from the package directly (no CDN needed)
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
-  import.meta.url
-).href;
+// pdfjs-dist v5 handles worker setup automatically in browser
+// No manual worker configuration needed
 
 /**
  * Extract text from a PDF file using pdfjs-dist
  */
 export async function extractTextFromPDF(file: File): Promise<string> {
+  const pdfjsLib = await import('pdfjs-dist');
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
@@ -54,6 +51,7 @@ export async function extractTextFromPDFFull(file: File): Promise<string> {
     console.log('[OCR] Direct extraction failed, trying canvas OCR', e);
   }
 
+  const pdfjsLib = await import('pdfjs-dist');
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
