@@ -1,39 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { getGroqCompletion } from '@/lib/groq';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-async function getGroqCompletion(question: string, userAnswer: string, markingScheme: any) {
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      messages: [
-        {
-          role: 'system',
-          content: `You are an AI tutor marking Zambian ECZ exam answers. Evaluate the student's answer against the marking scheme. Respond ONLY with valid JSON in this format: {"correct": true/false, "explanation": "Your feedback explanation"}`
-        },
-        {
-          role: 'user',
-          content: `Question: ${question}\n\nStudent's Answer: ${userAnswer}\n\nMarking Scheme: ${JSON.stringify(markingScheme)}\n\nEvaluate if the student's answer is correct based on the marking scheme points. Provide encouraging, educational feedback.`
-        }
-      ],
-      temperature: 0.3,
-      max_tokens: 500,
-    }),
-  });
-
-  if (!response.ok) throw new Error('Groq API error');
-  const data = await response.json();
-  return JSON.parse(data.choices[0].message.content);
-}
+const POINTS_PER_CORRECT = 15;
 
 export async function POST(
   request: NextRequest,
@@ -84,7 +58,6 @@ export async function POST(
       }
     }
 
-    // Get topic info and record performance
     const topicResults = [];
     for (const answer of answers) {
       const { data: question } = await authClient
@@ -107,7 +80,7 @@ export async function POST(
       const examId = params.id;
       const correct = results.filter(r => r.correct).length;
       const score = Math.round((correct / results.length) * 100);
-      const pointsEarned = correct * 15;
+      const pointsEarned = correct * POINTS_PER_CORRECT;
 
       await authClient.from('exam_attempts').insert({
         user_id: user.id,
@@ -117,7 +90,6 @@ export async function POST(
         time_spent_seconds: 0,
       });
 
-      // Record points history
       try {
         await authClient.from('points_history').insert({
           user_id: user.id,
@@ -125,16 +97,19 @@ export async function POST(
           source: 'exam',
           reference_id: examId,
         });
-      } catch {}
+      } catch (e) {
+        console.error('Failed to record points history:', e);
+      }
 
-      // Update total points via RPC
       try {
         await authClient.rpc('increment_points', {
-          points_to_add: pointsEarned
+          points_to_add: pointsEarned,
+          user_id_input: user.id,
         });
-      } catch {}
+      } catch (e) {
+        console.error('Failed to increment points:', e);
+      }
 
-      // Record topic performance - check existing first, then upsert
       if (topicResults.length > 0) {
         const firstTopic = topicResults[0];
         if (firstTopic) {

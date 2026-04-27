@@ -11,11 +11,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const email = body?.email;
     const password = body?.password;
-    console.log('[login] attempt for:', email.slice(0, 3) + '***@' + email.split('@')[1]);
-    if (!email || !password) {
-      return NextResponse.json({ error: 'Missing fields', received: { email, password: password ? '[set]' : '[empty]' } }, { status: 400 });
-    }
-
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,

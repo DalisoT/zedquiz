@@ -21,9 +21,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const accessToken = request.cookies.get('sb-access-token')?.value;
-    console.log('[delete] cookies:', request.cookies.getAll().map(c => c.name));
-    console.log('[delete] accessToken present:', !!accessToken);
+        const accessToken = request.cookies.get('sb-access-token')?.value;
     if (!accessToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const authClient = createClient(
@@ -35,8 +33,7 @@ export async function DELETE(
       }
     );
 
-    const { data: { user }, error: authErr } = await authClient.auth.getUser();
-    console.log('[delete] authErr:', authErr, 'user:', user?.id);
+    const { data: { user } } = await authClient.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const paper = await getPaper(params.id);

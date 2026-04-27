@@ -7,27 +7,27 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-async function authorizeRequest(request: NextRequest) {
-  const sessionToken = request.cookies.get('session_token')?.value;
-  if (!sessionToken) return null;
-
-  const { data: { user }, error } = await supabase.auth.getUser(sessionToken);
-  if (error || !user) return null;
-  return user;
+function getAuthClient(request: NextRequest) {
+  const accessToken = request.cookies.get('sb-access-token')?.value;
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: { headers: { Authorization: `Bearer ${accessToken}` } },
+      auth: { persistSession: false },
+    }
+  );
 }
 
-/**
- * Process paper questions from pre-extracted OCR text.
- * Called after browser-side OCR completes.
- */
 export async function POST(request: NextRequest) {
   try {
-    const user = await authorizeRequest(request);
+    const authClient = getAuthClient(request);
+    const { data: { user } } = await authClient.auth.getUser();
+
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check role
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
@@ -42,13 +42,9 @@ export async function POST(request: NextRequest) {
     const { paperId, ocrText } = body;
 
     if (!paperId || !ocrText) {
-      return NextResponse.json(
-        { error: 'paperId and ocrText are required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'paperId and ocrText are required' }, { status: 400 });
     }
 
-    // Verify paper ownership
     const { data: paper } = await supabase
       .from('papers')
       .select('id, exam_year, paper_number, uploaded_by')
@@ -63,17 +59,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Not your paper' }, { status: 403 });
     }
 
-    // Update status to processing
     await supabase.from('papers').update({ status: 'processing' }).eq('id', paperId);
 
-    // Parse questions with AI
-    const questions = await parseQuestionsWithAI(
-      ocrText,
-      paper.exam_year,
-      paper.paper_number
-    );
+    const questions = await parseQuestionsWithAI(ocrText, paper.exam_year, paper.paper_number);
 
-    // Delete existing questions and insert new ones
     await supabase.from('paper_questions').delete().eq('paper_id', paperId);
 
     const questionsToInsert = questions.map((q: any) => ({
@@ -87,28 +76,19 @@ export async function POST(request: NextRequest) {
       needs_image: q.needs_image || false,
     }));
 
-    const { error: insertError } = await supabase
-      .from('paper_questions')
-      .insert(questionsToInsert);
+    const { error: insertError } = await supabase.from('paper_questions').insert(questionsToInsert);
 
     if (insertError) {
       console.error('[process-text] Insert error:', insertError);
       throw insertError;
     }
 
-    // Update status to processed
     await supabase.from('papers').update({ status: 'processed' }).eq('id', paperId);
 
-    return NextResponse.json({
-      success: true,
-      questionsCount: questions.length,
-    });
+    return NextResponse.json({ success: true, questionsCount: questions.length });
 
   } catch (err: any) {
     console.error('[process-text] Error:', err);
-    return NextResponse.json(
-      { error: err.message || 'Processing failed' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err.message || 'Processing failed' }, { status: 500 });
   }
 }

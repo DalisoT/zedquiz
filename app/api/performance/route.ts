@@ -6,26 +6,34 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// Get user's performance (topics they struggle with)
+function getAuthClient(request: NextRequest) {
+  const accessToken = request.cookies.get('sb-access-token')?.value;
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: { headers: { Authorization: `Bearer ${accessToken}` } },
+      auth: { persistSession: false },
+    }
+  );
+}
+
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('user_id');
-    const subjectId = searchParams.get('subject_id');
+    const authClient = getAuthClient(request);
+    const { data: { user } } = await authClient.auth.getUser();
 
-    if (!userId) {
-      return NextResponse.json({ error: 'user_id required' }, { status: 400 });
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get topic performance
+    const { searchParams } = new URL(request.url);
+    const subjectId = searchParams.get('subject_id');
+
     let topicQuery = supabase
       .from('topic_performance')
-      .select(`
-        *,
-        topics(id, name),
-        subjects(id, name)
-      `)
-      .eq('user_id', userId)
+      .select(`*, topics(id, name), subjects(id, name)`)
+      .eq('user_id', user.id)
       .order('total_attempts', { ascending: false });
 
     if (subjectId) {
@@ -36,23 +44,21 @@ export async function GET(request: NextRequest) {
 
     if (topicError) return NextResponse.json({ error: topicError.message }, { status: 500 });
 
-    // Get subject performance
     const { data: subjectPerf, error: subjError } = await supabase
       .from('subject_performance')
       .select('*, subjects(id, name)')
-      .eq('user_id', userId);
+      .eq('user_id', user.id);
 
     if (subjError) return NextResponse.json({ error: subjError.message }, { status: 500 });
 
-    // Calculate weak areas (low accuracy)
     const weakTopics = (topicPerf || [])
-      .filter(t => t.total_attempts >= 2) // At least 2 attempts
+      .filter(t => t.total_attempts >= 2)
       .map(t => ({
         ...t,
         accuracy: t.total_attempts > 0 ? Math.round((t.correct_attempts / t.total_attempts) * 100) : 0,
       }))
-      .sort((a, b) => a.accuracy - b.accuracy) // Worst first
-      .slice(0, 5); // Top 5 weak areas
+      .sort((a, b) => a.accuracy - b.accuracy)
+      .slice(0, 5);
 
     const strongTopics = (topicPerf || [])
       .filter(t => t.total_attempts >= 2)
@@ -60,7 +66,7 @@ export async function GET(request: NextRequest) {
         ...t,
         accuracy: t.total_attempts > 0 ? Math.round((t.correct_attempts / t.total_attempts) * 100) : 0,
       }))
-      .sort((a, b) => b.accuracy - a.accuracy) // Best first
+      .sort((a, b) => b.accuracy - a.accuracy)
       .slice(0, 5);
 
     const subjectPerformance = (subjectPerf || []).map(s => ({
@@ -78,30 +84,33 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Record performance after quiz/exam
 export async function POST(request: NextRequest) {
   try {
-    const { user_id, topic_results, subject_id, class_id } = await request.json();
+    const authClient = getAuthClient(request);
+    const { data: { user } } = await authClient.auth.getUser();
 
-    if (!user_id || !topic_results || !Array.isArray(topic_results)) {
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { topic_results, subject_id, class_id } = await request.json();
+
+    if (!topic_results || !Array.isArray(topic_results)) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Update topic performance for each topic
     for (const result of topic_results) {
       const { topic_id, correct, marks, total_marks } = result;
 
-      // Upsert topic performance
-      const { data: existing } = await supabase
+      const { data: existing } = await authClient
         .from('topic_performance')
         .select('*')
-        .eq('user_id', user_id)
+        .eq('user_id', user.id)
         .eq('topic_id', topic_id)
         .single();
 
       if (existing) {
-        // Update existing
-        await supabase
+        await authClient
           .from('topic_performance')
           .update({
             total_attempts: existing.total_attempts + 1,
@@ -110,14 +119,13 @@ export async function POST(request: NextRequest) {
             marks_obtained: existing.marks_obtained + marks,
             last_attempted_at: new Date().toISOString(),
           })
-          .eq('user_id', user_id)
+          .eq('user_id', user.id)
           .eq('topic_id', topic_id);
       } else {
-        // Insert new
-        await supabase
+        await authClient
           .from('topic_performance')
           .insert({
-            user_id,
+            user_id: user.id,
             topic_id,
             subject_id,
             class_id,
@@ -130,22 +138,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Update subject performance
     if (subject_id) {
       const totalQuestions = topic_results.length;
       const correctQuestions = topic_results.filter(r => r.correct).length;
       const totalMarks = topic_results.reduce((sum, r) => sum + r.total_marks, 0);
       const marksObtained = topic_results.reduce((sum, r) => sum + r.marks, 0);
 
-      const { data: existing } = await supabase
+      const { data: existing } = await authClient
         .from('subject_performance')
         .select('*')
-        .eq('user_id', user_id)
+        .eq('user_id', user.id)
         .eq('subject_id', subject_id)
         .single();
 
       if (existing) {
-        await supabase
+        await authClient
           .from('subject_performance')
           .update({
             total_attempts: existing.total_attempts + 1,
@@ -154,13 +161,13 @@ export async function POST(request: NextRequest) {
             correct_questions: existing.correct_questions + correctQuestions,
             last_attempted_at: new Date().toISOString(),
           })
-          .eq('user_id', user_id)
+          .eq('user_id', user.id)
           .eq('subject_id', subject_id);
       } else {
-        await supabase
+        await authClient
           .from('subject_performance')
           .insert({
-            user_id,
+            user_id: user.id,
             subject_id,
             class_id,
             total_attempts: 1,

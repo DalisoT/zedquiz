@@ -18,9 +18,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get access token from cookie and create auth-aware client
-    const accessToken = request.cookies.get('sb-access-token')?.value;
-    console.log('[upload] cookies:', request.cookies.getAll().map(c => c.name));
-    console.log('[upload] accessToken present:', !!accessToken);
+        const accessToken = request.cookies.get('sb-access-token')?.value;
     if (!accessToken) return NextResponse.json({ error: 'Unauthorized: No access token found in cookies. Please sign in again.' }, { status: 401 });
 
     const supabase = createClient(
@@ -32,8 +30,7 @@ export async function POST(request: NextRequest) {
       }
     );
 
-    const { data: { user }, error: authErr } = await supabase.auth.getUser();
-    console.log('[upload] authErr:', authErr, 'user:', user?.id);
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const fileUrl = await uploadPaperFile(file, user.id);
