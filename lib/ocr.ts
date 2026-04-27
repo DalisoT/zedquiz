@@ -71,7 +71,7 @@ export async function extractTextFromPDFFull(file: File): Promise<string> {
     canvas.width = viewport.width;
     canvas.height = viewport.height;
 
-    await page.render({ canvasContext: ctx, viewport }).promise;
+    await page.render({ canvasContext: ctx, viewport, canvas } as any).promise;
 
     const imageDataUrl = canvas.toDataURL('image/png');
     const response = await fetch(imageDataUrl);

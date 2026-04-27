@@ -7,11 +7,20 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-export async function GET() {
-  const { data, error } = await supabase
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const teacherId = searchParams.get('teacherId');
+
+  let query = supabase
     .from('quizzes')
     .select('*, classes(name), subjects(name)')
     .order('created_at', { ascending: false });
+
+  if (teacherId) {
+    query = query.eq('teacher_id', teacherId);
+  }
+
+  const { data, error } = await query;
   if (error) return NextResponse.json({ error }, { status: 500 });
   return NextResponse.json({ quizzes: data });
 }

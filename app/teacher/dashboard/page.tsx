@@ -6,6 +6,7 @@ import Link from "next/link";
 interface Quiz {
   id: string;
   title: string;
+  teacher_id: string;
   class_id: string;
   subject_id: string;
   is_published: boolean;
@@ -18,6 +19,7 @@ interface Quiz {
 interface Exam {
   id: string;
   title: string;
+  teacher_id: string;
   class_id: string;
   subject_id: string;
   is_published: boolean;
@@ -33,7 +35,6 @@ interface TeacherStats {
   draftQuizzes: number;
   totalExams: number;
   publishedExams: number;
-  totalStudents: number;
   totalAttempts: number;
   avgScore: number;
 }
@@ -50,7 +51,6 @@ export default function TeacherDashboard() {
   const [user, setUser] = useState<User | null>(null);
   const [stats, setStats] = useState<TeacherStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadingStats, setLoadingStats] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
@@ -59,7 +59,6 @@ export default function TeacherDashboard() {
     setError(null);
 
     try {
-      // Fetch auth user
       const userRes = await fetch("/api/auth/me");
       const userData = await userRes.json();
       if (!userData.user) {
@@ -69,30 +68,36 @@ export default function TeacherDashboard() {
       }
       setUser(userData.user);
 
-      // Fetch quizzes and exams in parallel
+      const teacherId = userData.user.id;
+
       const [quizzesRes, examsRes] = await Promise.all([
-        fetch("/api/quizzes"),
-        fetch("/api/exams"),
+        fetch(`/api/quizzes?teacherId=${teacherId}`),
+        fetch(`/api/exams?teacherId=${teacherId}`),
       ]);
 
       const quizzesData = await quizzesRes.json();
       const examsData = await examsRes.json();
 
-      setQuizzes(quizzesData.quizzes || []);
-      setExams(examsData.exams || []);
+      const teacherQuizzes = (quizzesData.quizzes || []).filter(
+        (q: Quiz) => q.teacher_id === teacherId
+      );
+      const teacherExams = (examsData.exams || []).filter(
+        (e: Exam) => e.teacher_id === teacherId
+      );
 
-      // Calculate basic stats
-      const publishedQuizzes = (quizzesData.quizzes || []).filter((q: Quiz) => q.is_published).length;
-      const draftQuizzes = (quizzesData.quizzes || []).filter((q: Quiz) => !q.is_published).length;
-      const publishedExams = (examsData.exams || []).filter((e: Exam) => e.is_published).length;
+      setQuizzes(teacherQuizzes);
+      setExams(teacherExams);
+
+      const publishedQuizzes = teacherQuizzes.filter((q: Quiz) => q.is_published).length;
+      const draftQuizzes = teacherQuizzes.filter((q: Quiz) => !q.is_published).length;
+      const publishedExams = teacherExams.filter((e: Exam) => e.is_published).length;
 
       setStats({
-        totalQuizzes: (quizzesData.quizzes || []).length,
+        totalQuizzes: teacherQuizzes.length,
         publishedQuizzes,
         draftQuizzes,
-        totalExams: (examsData.exams || []).length,
+        totalExams: teacherExams.length,
         publishedExams,
-        totalStudents: 0, // Would need separate API call
         totalAttempts: 0,
         avgScore: 0,
       });

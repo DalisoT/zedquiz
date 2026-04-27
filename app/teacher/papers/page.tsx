@@ -3,7 +3,10 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { extractTextFromPDFFull } from '@/lib/ocr';
+
+type OcrModule = {
+  extractTextFromPDFFull: (file: File) => Promise<string>;
+};
 
 interface Level { id: string; name: string; slug: string; }
 interface Subject { id: string; name: string; }
@@ -201,6 +204,10 @@ export default function TeacherPapersPage() {
     btn.textContent = 'Extracting text...';
 
     try {
+      // Dynamically import OCR to avoid SSR issues
+      const ocrModule: OcrModule = await import('@/lib/ocr');
+      const extractTextFromPDFFull = ocrModule.extractTextFromPDFFull;
+
       // Download the PDF file
       const fileResponse = await fetch(paper.file_url || '');
       if (!fileResponse.ok) throw new Error('Failed to download PDF');
