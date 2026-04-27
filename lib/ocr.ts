@@ -1,12 +1,14 @@
 import Tesseract from 'tesseract.js';
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Set worker for pdfjs
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+// Use the worker from the package directly (no CDN needed)
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url
+).href;
 
 /**
  * Extract text from a PDF file using pdfjs-dist
- * Works in browser environment
  */
 export async function extractTextFromPDF(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
@@ -30,13 +32,11 @@ export async function extractTextFromPDF(file: File): Promise<string> {
 
 /**
  * Perform OCR on an image file using Tesseract.js
- * Works in browser environment - free and runs entirely client-side
  */
 export async function performOCR(imageFile: File): Promise<string> {
   const result = await Tesseract.recognize(imageFile, 'eng', {
     logger: (m) => console.log('[OCR]', m.status, m.progress),
   });
-
   return result.data.text;
 }
 
@@ -45,7 +45,6 @@ export async function performOCR(imageFile: File): Promise<string> {
  * falls back to OCR on canvas if needed
  */
 export async function extractTextFromPDFFull(file: File): Promise<string> {
-  // First try direct text extraction
   try {
     const text = await extractTextFromPDF(file);
     if (text.length > 100) {
@@ -55,7 +54,6 @@ export async function extractTextFromPDFFull(file: File): Promise<string> {
     console.log('[OCR] Direct extraction failed, trying canvas OCR', e);
   }
 
-  // Fall back to canvas-based OCR via pdfjs
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
